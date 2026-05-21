@@ -2,6 +2,7 @@
 """Seed data for New Concept English Book 1 — Lessons 1-10 sample."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -10,11 +11,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlmodel import Session, select
 
+from app.config import settings
 from app.db.database import engine, init_db
 from app.db.models import Lesson, Vocabulary, GrammarPoint, Exercise
 
 
 def seed():
+    # Ensure data directory exists (for SQLite)
+    db_url = settings.database_url
+    if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:///:memory:"):
+        db_path = db_url.replace("sqlite:///", "")
+        os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+
     init_db()
 
     with Session(engine) as session:
