@@ -2,24 +2,25 @@
   <div class="lesson-detail" v-if="lesson">
     <button class="back-btn" @click="$router.push('/lessons')">← 返回</button>
 
-    <h2 class="title">L{{ lesson.lesson_number }} {{ lesson.title }}</h2>
-
-    <!-- Lesson image -->
-    <div class="lesson-image" v-if="lesson.image_url">
-      <img :src="lesson.image_url" :alt="lesson.title" />
+    <!-- Header with lesson type badge -->
+    <div class="header">
+      <h2 class="title">L{{ lesson.lesson_number }} {{ lesson.title }}</h2>
+      <span class="badge" :class="isOdd ? 'badge-text' : 'badge-exercise'">
+        {{ isOdd ? '课文' : '练习' }}
+      </span>
     </div>
 
-    <!-- Audio player -->
+    <!-- Audio player (text lessons only) -->
     <AudioPlayer v-if="lesson.audio_url" :src="lesson.audio_url" :label="audioLabel" />
 
-    <!-- Lesson text -->
-    <section class="section">
+    <!-- Lesson text (text lessons only) -->
+    <section class="section" v-if="lesson.text">
       <h3>📄 课文</h3>
       <pre class="lesson-text">{{ lesson.text }}</pre>
     </section>
 
-    <!-- Translation -->
-    <section class="section">
+    <!-- Translation (text lessons only) -->
+    <section class="section" v-if="lesson.translation">
       <h3>🇨🇳 翻译</h3>
       <pre class="lesson-text translation">{{ lesson.translation }}</pre>
     </section>
@@ -53,7 +54,7 @@
 
     <!-- Exercises -->
     <section class="section" v-if="exercises.length">
-      <h3>✏️ 练习</h3>
+      <h3>✏️ 练习 ({{ exercises.length }}题)</h3>
       <div class="exercise-list">
         <div class="exercise-item" v-for="ex in exercises" :key="ex.id">
           <p class="question">{{ ex.question }}</p>
@@ -101,14 +102,10 @@
 
     <!-- Navigation -->
     <div class="nav-buttons">
-      <button
-        v-if="lesson.lesson_number > 1"
-        class="nav-btn"
-        @click="$router.push(`/lessons/${lesson.lesson_number - 1}`)"
-      >
+      <button v-if="lesson.lesson_number > 1" class="nav-btn" @click="goToLesson(lesson.lesson_number - 1)">
         ← 上一课
       </button>
-      <button class="nav-btn" @click="$router.push(`/lessons/${lesson.lesson_number + 1}`)">
+      <button class="nav-btn" @click="goToLesson(lesson.lesson_number + 1)">
         下一课 →
       </button>
     </div>
@@ -119,7 +116,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   getLesson,
   getLessonVocabulary,
@@ -131,6 +128,7 @@ import {
 import AudioPlayer from '../components/AudioPlayer.vue'
 
 const route = useRoute()
+const router = useRouter()
 const lesson = ref(null)
 const vocab = ref([])
 const grammar = ref([])
@@ -141,17 +139,14 @@ const answered = reactive({})
 const inputAnswers = reactive({})
 const exerciseScores = reactive({})
 
-// Audio label — note paired audio for even lessons
+const isOdd = computed(() => lesson.value && lesson.value.lesson_number % 2 === 1)
+
 const audioLabel = computed(() => {
   if (!lesson.value) return '课文音频'
   const n = lesson.value.lesson_number
-  if (n % 2 === 0) {
-    return `课文音频 (L${n - 1}&L${n} 合并)`
-  }
-  return `课文音频 (L${n}&L${n + 1} 合并)`
+  return `L${n}${isOdd.value ? `&L${n + 1}` : `&L${n - 1}`} 共用音频`
 })
 
-// Web Speech API — word pronunciation
 function speakWord(word) {
   if (!window.speechSynthesis) return
   window.speechSynthesis.cancel()
@@ -159,6 +154,11 @@ function speakWord(word) {
   utterance.lang = 'en-US'
   utterance.rate = 0.8
   window.speechSynthesis.speak(utterance)
+}
+
+function goToLesson(num) {
+  if (num < 1) return
+  router.push(`/lessons/${num}`)
 }
 
 function getOptionClass(exerciseId, option) {
@@ -177,14 +177,12 @@ async function submitAnswer(exercise, answer) {
     results[exercise.id] = res.data
     answered[exercise.id] = true
 
-    // Track score
     if (!exerciseScores[exercise.id]) exerciseScores[exercise.id] = {}
     exerciseScores[exercise.id].total = (exerciseScores[exercise.id].total || 0) + 1
     if (res.data.correct) {
       exerciseScores[exercise.id].correct = (exerciseScores[exercise.id].correct || 0) + 1
     }
 
-    // Update progress after all exercises done
     const totalEx = exercises.value.length
     const answeredCount = Object.keys(answered).length
     if (answeredCount === totalEx) {
@@ -230,24 +228,34 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .title {
   font-size: 1.3rem;
-  margin-bottom: 16px;
+  margin: 0;
   color: #333;
 }
 
-.lesson-image {
-  margin-bottom: 16px;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 8px;
 }
 
-.lesson-image img {
-  width: 100%;
-  max-height: 200px;
-  object-fit: cover;
-  display: block;
+.badge-text {
+  background: #e8f0fe;
+  color: #4a90d9;
+}
+
+.badge-exercise {
+  background: #fff3e0;
+  color: #ff9800;
 }
 
 .section {

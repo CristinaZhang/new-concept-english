@@ -18,39 +18,67 @@
       </div>
     </div>
 
-    <!-- Lesson list -->
-    <div class="cards" v-if="lessons.length">
-      <LessonCard v-for="lesson in lessons" :key="lesson.id" :lesson="lesson" />
+    <!-- Paired lesson groups -->
+    <div class="groups" v-if="oddLessons.length">
+      <div class="lesson-group" v-for="odd in oddLessons" :key="odd.id">
+        <!-- Odd lesson (text + audio) -->
+        <LessonCard :lesson="odd" badge="课文" @click="goToLesson(odd)" />
+        <!-- Even lesson (exercises only) -->
+        <LessonCard
+          v-if="getEven(odd.lesson_number)"
+          :lesson="getEven(odd.lesson_number)"
+          badge="练习"
+          class="exercise-card"
+          @click="goToLesson(getEven(odd.lesson_number))"
+        />
+      </div>
     </div>
 
     <div v-else-if="loading" class="loading">加载中...</div>
     <div v-else class="empty">暂无课文数据，请先运行种子数据导入。</div>
 
     <!-- Load more -->
-    <button
-      v-if="hasMore"
-      class="load-more"
-      @click="loadMore"
-      :disabled="loading"
-    >
+    <button v-if="hasMore" class="load-more" @click="loadMore" :disabled="loading">
       {{ loading ? '加载中...' : '加载更多' }}
     </button>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getLessons, getProgressSummary } from '../api/index.js'
 import LessonCard from '../components/LessonCard.vue'
 
+const router = useRouter()
 const lessons = ref([])
 const loading = ref(false)
 const offset = ref(0)
 const total = ref(0)
-const limit = ref(20)
+const limit = ref(40)
 const summary = ref({ total_lessons: 0, completed_lessons: 0, completion_rate: 0 })
 
-const hasMore = ref(true)
+const hasMore = computed(() => offset.value < total.value)
+
+// Odd lessons = text lessons
+const oddLessons = computed(() => lessons.value.filter(l => l.lesson_number % 2 === 1))
+
+// Map odd lesson number -> even lesson
+const evenMap = computed(() => {
+  const map = {}
+  lessons.value.filter(l => l.lesson_number % 2 === 0).forEach(l => {
+    map[l.lesson_number - 1] = l
+  })
+  return map
+})
+
+function getEven(oddNum) {
+  return evenMap.value[oddNum] || null
+}
+
+function goToLesson(lesson) {
+  router.push(`/lessons/${lesson.id}`)
+}
 
 async function loadLessons() {
   loading.value = true
@@ -59,7 +87,6 @@ async function loadLessons() {
     lessons.value = [...lessons.value, ...res.data.items]
     total.value = res.data.total
     offset.value += limit.value
-    hasMore.value = offset.value < total.value
   } catch (e) {
     console.error('Failed to load lessons:', e)
   } finally {
@@ -115,6 +142,22 @@ onMounted(() => {
 
 .summary-label {
   font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lesson-group {
+  background: #f5f7fa;
+  border-radius: 14px;
+  padding: 6px;
+}
+
+.exercise-card {
   opacity: 0.85;
 }
 
