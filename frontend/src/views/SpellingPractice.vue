@@ -3,13 +3,15 @@
     <h2 class="page-title">✏️ 拼写练习</h2>
 
     <div class="practice-area" v-if="currentWord">
-      <!-- Show the meaning, user spells the word -->
       <div class="prompt-card">
         <p class="meaning">{{ currentWord.meaning }}</p>
         <p class="phonetic" v-if="currentWord.phonetic">{{ currentWord.phonetic }}</p>
         <p class="example" v-if="showHint && currentWord.example_sentence">
           💡 {{ currentWord.example_sentence }}
         </p>
+        <button class="speak-btn" @click="speakWord(currentWord.word)">
+          🔊 听发音
+        </button>
       </div>
 
       <div class="input-area">
@@ -61,7 +63,6 @@ const showHint = ref(false)
 const score = ref(0)
 const attempts = ref(0)
 const inputRef = ref(null)
-
 const currentWord = ref(null)
 
 function nextWord() {
@@ -80,8 +81,6 @@ function checkSpelling() {
   const isCorrect = userInput.value.trim().toLowerCase() === currentWord.value.word.toLowerCase()
   result.value = { correct: isCorrect }
   if (isCorrect) score.value++
-
-  // Auto-advance after a short delay
   setTimeout(() => nextWord(), 1500)
 }
 
@@ -89,6 +88,16 @@ function resetPractice() {
   score.value = 0
   attempts.value = 0
   nextWord()
+}
+
+// Web Speech API
+function speakWord(word) {
+  if (!window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(word)
+  utterance.lang = 'en-US'
+  utterance.rate = 0.7
+  window.speechSynthesis.speak(utterance)
 }
 
 onMounted(async () => {
@@ -129,7 +138,7 @@ onMounted(async () => {
   border-radius: 16px;
   padding: 32px 20px;
   margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .meaning {
@@ -149,6 +158,29 @@ onMounted(async () => {
   font-size: 0.9rem;
   color: #4a90d9;
   margin-top: 12px;
+}
+
+.speak-btn {
+  background: #4a90d9;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 24px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+
+.speak-btn:hover {
+  background: #357abd;
+}
+
+.speak-btn:active {
+  transform: scale(0.95);
 }
 
 .input-area {
@@ -208,7 +240,8 @@ onMounted(async () => {
   margin-bottom: 24px;
 }
 
-.hint-btn, .skip-btn {
+.hint-btn,
+.skip-btn {
   padding: 8px 20px;
   border-radius: 8px;
   border: 1px solid #ddd;
@@ -236,7 +269,8 @@ onMounted(async () => {
   font-size: 0.85rem;
 }
 
-.loading, .empty {
+.loading,
+.empty {
   text-align: center;
   padding: 40px;
   color: #999;

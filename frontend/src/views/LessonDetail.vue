@@ -4,8 +4,13 @@
 
     <h2 class="title">L{{ lesson.lesson_number }} {{ lesson.title }}</h2>
 
+    <!-- Lesson image -->
+    <div class="lesson-image" v-if="lesson.image_url">
+      <img :src="lesson.image_url" :alt="lesson.title" />
+    </div>
+
     <!-- Audio player -->
-    <AudioPlayer v-if="lesson.audio_url" :src="lesson.audio_url" label="课文音频" />
+    <AudioPlayer v-if="lesson.audio_url" :src="lesson.audio_url" :label="audioLabel" />
 
     <!-- Lesson text -->
     <section class="section">
@@ -27,6 +32,7 @@
           <span class="word">{{ v.word }}</span>
           <span class="phonetic">{{ v.phonetic }}</span>
           <span class="meaning">{{ v.meaning }}</span>
+          <button class="speak-btn" @click="speakWord(v.word)" :title="`发音: ${v.word}`">🔊</button>
         </div>
       </div>
     </section>
@@ -112,7 +118,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   getLesson,
@@ -134,6 +140,26 @@ const results = reactive({})
 const answered = reactive({})
 const inputAnswers = reactive({})
 const exerciseScores = reactive({})
+
+// Audio label — note paired audio for even lessons
+const audioLabel = computed(() => {
+  if (!lesson.value) return '课文音频'
+  const n = lesson.value.lesson_number
+  if (n % 2 === 0) {
+    return `课文音频 (L${n - 1}&L${n} 合并)`
+  }
+  return `课文音频 (L${n}&L${n + 1} 合并)`
+})
+
+// Web Speech API — word pronunciation
+function speakWord(word) {
+  if (!window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(word)
+  utterance.lang = 'en-US'
+  utterance.rate = 0.8
+  window.speechSynthesis.speak(utterance)
+}
 
 function getOptionClass(exerciseId, option) {
   if (!answered[exerciseId]) return ''
@@ -210,12 +236,26 @@ onMounted(async () => {
   color: #333;
 }
 
+.lesson-image {
+  margin-bottom: 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.lesson-image img {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
 .section {
   background: white;
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .section h3 {
@@ -265,6 +305,20 @@ onMounted(async () => {
 
 .vocab-item .meaning {
   flex: 1;
+}
+
+.speak-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.speak-btn:hover {
+  background: #f0f7ff;
 }
 
 .grammar-list {
