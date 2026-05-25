@@ -1,0 +1,21 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app/data
+      - ./resources:/app/resources:ro
+    environment:
+      - DATABASE_URL=sqlite:///./data/nce.db
+      - CORS_ORIGINS=http://localhost
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:
