@@ -15,6 +15,29 @@ from app.db.database import engine, init_db
 from app.db.models import Lesson, Vocabulary, GrammarPoint, Exercise
 
 
+# ── Audio file mapping (paired files from wychl/nce repo) ────────────
+_AUDIO_MAP = {
+    (1, 2): "001&002.Excuse Me",
+    (3, 4): "003&004.Sorry, Sir",
+    (5, 6): "005&006.Nice to Meet You",
+    (7, 8): "007&008.Are You a Teacher",
+    (9, 10): "009&010.How Are You Today",
+    (11, 12): "011&012.Is This Your Shirt",
+    (13, 14): "013&014.A New Dress",
+    (15, 16): "015&016.Your Passports, Please",
+    (17, 18): "017&018.How do you do",
+    (19, 20): "019&020.Tired and Thirsty",
+}
+
+
+def _audio_filename(lesson_num: int) -> str:
+    """Get the audio filename for a given lesson number (paired files)."""
+    for (start, end), name in _AUDIO_MAP.items():
+        if start <= lesson_num <= end:
+            return name
+    return f"lesson_{lesson_num:03d}"
+
+
 # ── Lessons ──────────────────────────────────────────────────────────
 LESSONS = [
     # (lesson_number, title, text, translation)
@@ -393,8 +416,8 @@ def seed():
                 level="第一册",
                 text=text,
                 translation=translation,
-                image_url=f"/resources/images/lesson_{num}.jpg",
-                audio_url=f"/resources/audio/lesson_{num}.mp3",
+                image_url=f"/resources/images/lesson_{num:03d}.svg",
+                audio_url=f"/resources/audio/{_audio_filename(num)}.mp3",
             )
             session.add(lesson)
         session.commit()
