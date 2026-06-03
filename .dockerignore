@@ -1,10 +1,4 @@
-# Backend build
-frontend/
-docs/
-k8s/
-.github/
-
-# Python
+# Python build artifacts
 .venv/
 __pycache__/
 *.pyc
@@ -12,16 +6,22 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local env files
 .env
 local.env
 
-# Resources - only include audio, images, seed
-resources/audio/
-resources/images/
-resources/seed/
-!resources/README.md
-
-# Misc
+# IDE / OS
+.vscode/
+.idea/
 .DS_Store
-*.md
-!.dockerignore
+*.swp
+
+# Docs / configs (not needed in Docker)
+docs/
+k8s/
+.github/
+CLAUDE.md
+
+# Dev scripts
+resources/download_audio_*.py
