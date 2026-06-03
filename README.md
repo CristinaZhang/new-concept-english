@@ -2,6 +2,8 @@
 
 > 面向 8-9 岁孩子的新概念英语第一册自主学习平台
 
+[![Build & Deploy](https://github.com/CristinaZhang/new-concept-english/actions/workflows/deploy.yml/badge.svg)](https://github.com/CristinaZhang/new-concept-english/actions/workflows/deploy.yml)
+
 ## ✨ 功能
 
 - 📖 **课文浏览** — 中英对照，按"课文+练习"分组展示
