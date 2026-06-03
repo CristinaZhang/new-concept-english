@@ -55,17 +55,93 @@ jobs:
           script: |
             kubectl create namespace new-concept --dry-run=client -o yaml | kubectl apply -f -
 
+            # Create/update ImagePullSecret for GHCR
+            kubectl create secret docker-registry ghcr-secret \
+              --docker-server=${{ env.REGISTRY }} \
+              --docker-username=CristinaZhang \
+              --docker-password="${{ secrets.GHCR_PAT }}" \
+              -n new-concept \
+              --dry-run=client -o yaml | kubectl apply -f -
+
             # Backend deployment
-            kubectl set image deployment/nce-backend \
-              backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-backend:${{ github.sha }} \
-              -n new-concept --record
+            kubectl apply -f - <<EOF
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: nce-backend
+              namespace: new-concept
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: nce-backend
+              template:
+                metadata:
+                  labels:
+                    app: nce-backend
+                spec:
+                  imagePullSecrets:
+                  - name: ghcr-secret
+                  containers:
+                  - name: backend
+                    image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-backend:${{ github.sha }}
+                    ports:
+                    - containerPort: 8000
+                    env:
+                    - name: DATABASE_URL
+                      value: sqlite:///./data/nce.db
+                    - name: CORS_ORIGINS
+                      value: "http://${{ env.K3S_HOST }}"
+                    resources:
+                      requests:
+                        memory: "128Mi"
+                        cpu: "100m"
+                      limits:
+                        memory: "256Mi"
+                        cpu: "250m"
+                    volumeMounts:
+                    - name: data
+                      mountPath: /app/data
+                  volumes:
+                  - name: data
+                    persistentVolumeClaim:
+                      claimName: nce-backend-data
+            EOF
 
             # Frontend deployment
-            kubectl set image deployment/nce-frontend \
-              frontend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-frontend:${{ github.sha }} \
-              -n new-concept --record
+            kubectl apply -f - <<EOF
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: nce-frontend
+              namespace: new-concept
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: nce-frontend
+              template:
+                metadata:
+                  labels:
+                    app: nce-frontend
+                spec:
+                  imagePullSecrets:
+                  - name: ghcr-secret
+                  containers:
+                  - name: frontend
+                    image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-frontend:${{ github.sha }}
+                    ports:
+                    - containerPort: 80
+                    resources:
+                      requests:
+                        memory: "64Mi"
+                        cpu: "50m"
+                      limits:
+                        memory: "128Mi"
+                        cpu: "100m"
+            EOF
 
-            # Create PVC if needed
+            # PVC
             kubectl apply -f - <<EOF
             apiVersion: v1
             kind: PersistentVolumeClaim
@@ -80,8 +156,8 @@ jobs:
               storageClassName: local-path
             EOF
 
-            kubectl rollout status deployment/nce-backend -n new-concept --timeout=120s || echo "Rollout status check failed"
-            kubectl rollout status deployment/nce-frontend -n new-concept --timeout=120s || echo "Rollout status check failed"
+            kubectl rollout status deployment/nce-backend -n new-concept --timeout=120s || echo "Rollout check failed"
+            kubectl rollout status deployment/nce-frontend -n new-concept --timeout=120s || echo "Rollout check failed"
 
             echo "=== Deploy complete ==="
             echo "Access at: http://${{ env.K3S_HOST }}"
