@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nce-backend
+  namespace: new-concept
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nce-backend
+  template:
+    metadata:
+      labels:
+        app: nce-backend
+    spec:
+      containers:
+      - name: backend
+        image: ghcr.io/cristinazhang/nce-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          value: sqlite:///./data/nce.db
+        - name: CORS_ORIGINS
+          value: "http://47.96.135.190"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: nce-backend-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nce-backend-data
+  namespace: new-concept
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-path
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nce-backend
+  namespace: new-concept
+spec:
+  selector:
+    app: nce-backend
+  ports:
+  - port: 8000
+    targetPort: 8000

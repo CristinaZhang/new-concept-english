@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nce-frontend
+  namespace: new-concept
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nce-frontend
+  template:
+    metadata:
+      labels:
+        app: nce-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ghcr.io/cristinazhang/nce-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nce-frontend
+  namespace: new-concept
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: nce-frontend
