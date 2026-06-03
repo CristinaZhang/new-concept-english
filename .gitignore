@@ -9,3 +9,5 @@ dist/
 # Large media files (download via resources/download.sh)
 resources/audio/*.mp3
 resources/lrc/*.lrc
+.DS_Store
+resources/download_audio_21_48.py

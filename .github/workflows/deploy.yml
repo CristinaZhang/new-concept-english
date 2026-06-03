@@ -1,0 +1,198 @@
+name: Build & Deploy to K3s
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: CristinaZhang
+  K3S_HOST: 47.96.135.190
+  K3S_USER: root
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.K3S_HOST }}
+          username: ${{ env.K3S_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Ensure namespace exists
+            kubectl create namespace new-concept --dry-run=client -o yaml | kubectl apply -f -
+
+            # Deploy backend
+            kubectl apply -f - <<EOF
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: nce-backend
+              namespace: new-concept
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: nce-backend
+              template:
+                metadata:
+                  labels:
+                    app: nce-backend
+                spec:
+                  containers:
+                  - name: backend
+                    image: ghcr.io/CristinaZhang/nce-backend:${{ github.sha }}
+                    ports:
+                    - containerPort: 8000
+                    env:
+                    - name: DATABASE_URL
+                      value: sqlite:///./data/nce.db
+                    - name: CORS_ORIGINS
+                      value: "http://${{ env.K3S_HOST }}"
+                    resources:
+                      requests:
+                        memory: "128Mi"
+                        cpu: "100m"
+                      limits:
+                        memory: "256Mi"
+                        cpu: "250m"
+                    volumeMounts:
+                    - name: data
+                      mountPath: /app/data
+                    - name: resources
+                      mountPath: /app/resources
+                      readOnly: true
+                  volumes:
+                  - name: data
+                    persistentVolumeClaim:
+                      claimName: nce-backend-data
+                  - name: resources
+                    emptyDir: {}
+            EOF
+
+            # Create PVC if not exists
+            kubectl apply -f - <<EOF
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: nce-backend-data
+              namespace: new-concept
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 1Gi
+              storageClassName: local-path
+            EOF
+
+            # Deploy frontend
+            kubectl apply -f - <<EOF
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: nce-frontend
+              namespace: new-concept
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: nce-frontend
+              template:
+                metadata:
+                  labels:
+                    app: nce-frontend
+                spec:
+                  containers:
+                  - name: frontend
+                    image: ghcr.io/CristinaZhang/nce-frontend:${{ github.sha }}
+                    ports:
+                    - containerPort: 80
+                    env:
+                    - name: VITE_API_BASE_URL
+                      value: "http://${{ env.K3S_HOST }}"
+                    resources:
+                      requests:
+                        memory: "64Mi"
+                        cpu: "50m"
+                      limits:
+                        memory: "128Mi"
+                        cpu: "100m"
+            EOF
+
+            kubectl apply -f - <<EOF
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: nce-frontend
+              namespace: new-concept
+            spec:
+              type: LoadBalancer
+              ports:
+              - port: 80
+                targetPort: 80
+              selector:
+                app: nce-frontend
+            EOF
+
+            # Wait for rollout
+            kubectl rollout status deployment/nce-backend -n new-concept --timeout=120s
+            kubectl rollout status deployment/nce-frontend -n new-concept --timeout=120s
+
+            echo "Deploy complete: http://${{ env.K3S_HOST }}"

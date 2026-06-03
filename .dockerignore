@@ -1,0 +1,27 @@
+# Backend build
+frontend/
+docs/
+k8s/
+.github/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+local.env
+
+# Resources - only include audio, images, seed
+resources/audio/
+resources/images/
+resources/seed/
+!resources/README.md
+
+# Misc
+.DS_Store
+*.md
+!.dockerignore
