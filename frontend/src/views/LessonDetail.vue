@@ -236,8 +236,34 @@ function onTextSelect() {
   selectedText.value = text
   const range = sel.getRangeAt(0)
   const rect = range.getBoundingClientRect()
-  popupTop.value = rect.bottom + window.scrollY + 8
-  popupLeft.value = rect.left + window.scrollX
+
+  // Position: below selection, clamped to viewport
+  const viewportW = window.innerWidth
+  const viewportH = window.innerHeight
+  const popupW = 320
+  const popupH = 450
+
+  let left = rect.left + window.scrollX
+  let top = rect.bottom + window.scrollY + 8
+
+  // Clamp right edge
+  if (left + popupW > viewportW + window.scrollX) {
+    left = viewportW + window.scrollX - popupW - 16
+  }
+  // Clamp left edge
+  if (left < 8) left = 8
+
+  // If below selection would go off-screen, show above
+  if (top + popupH > viewportH + window.scrollY) {
+    top = rect.top + window.scrollY - popupH - 8
+  }
+  // If still above viewport, show below
+  if (top < window.scrollY + 8) {
+    top = window.scrollY + 8
+  }
+
+  popupTop.value = top
+  popupLeft.value = left
 }
 
 function clearSelection() {

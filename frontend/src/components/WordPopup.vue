@@ -144,7 +144,7 @@ function onCancel() {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
   padding: 16px;
   width: 300px;
-  max-height: 80vh;
+  max-height: 70vh;
   overflow-y: auto;
   animation: fadeIn 0.2s ease;
 }
