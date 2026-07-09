@@ -145,7 +145,15 @@ jobs:
           username: ${{ env.K3S_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Prepare manifest files with actual image tags
+            # Clone/pull repo to get K8s manifests
+            if [ -d /root/nce-deploy ]; then
+              cd /root/nce-deploy && git pull origin master 2>/dev/null || true
+            else
+              git clone --depth 1 https://github.com/CristinaZhang/new-concept-english.git /root/nce-deploy
+            fi
+            cd /root/nce-deploy
+
+            # Prepare image tags
             BACKEND_IMG="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-backend:${{ github.sha }}"
             FRONTEND_IMG="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-frontend:${{ github.sha }}"
 
