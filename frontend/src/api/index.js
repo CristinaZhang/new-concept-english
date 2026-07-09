@@ -64,4 +64,26 @@ export function getUsers() {
   return api.get('/v1/users')
 }
 
+export function createUser(data) {
+  return api.post('/v1/users', data)
+}
+
+export function deleteUser(userId) {
+  return api.delete(`/v1/users/${userId}`)
+}
+
+// ── Personal Vocabulary ─────────────────────────────────────────────
+
+export function getPersonalVocab(params = {}) {
+  return api.get('/v1/personal-vocab', { params: { user_id: getUserId(), ...params } })
+}
+
+export function addPersonalVocab(data) {
+  return api.post('/v1/personal-vocab', data, { params: { user_id: getUserId() } })
+}
+
+export function deletePersonalVocab(id) {
+  return api.delete(`/v1/personal-vocab/${id}`, { params: { user_id: getUserId() } })
+}
+
 export default api

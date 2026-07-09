@@ -20,6 +20,7 @@ class Lesson(SQLModel, table=True):
     grammar_points: list["GrammarPoint"] = Relationship(back_populates="lesson")
     exercises: list["Exercise"] = Relationship(back_populates="lesson")
     progress: Optional["UserProgress"] = Relationship(back_populates="lesson")
+    personal_vocab: list["PersonalVocabulary"] = Relationship(back_populates="lesson")
 
 
 class Vocabulary(SQLModel, table=True):
@@ -120,3 +121,18 @@ class User(SQLModel, table=True):
     user_id: str = Field(index=True, unique=True)
     name: str = ""
     created_at: Optional[datetime] = None
+
+
+class PersonalVocabulary(SQLModel, table=True):
+    """User-added vocabulary from lesson text selection."""
+    __tablename__ = "personal_vocabulary"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: str = Field(default="default", index=True)
+    lesson_id: int = Field(foreign_key="lesson.id", index=True)
+    word: str
+    phonetic: str = ""
+    meaning: str = ""
+    created_at: Optional[datetime] = None
+
+    lesson: Optional["Lesson"] = Relationship(back_populates="personal_vocab")

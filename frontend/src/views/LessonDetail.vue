@@ -16,7 +16,7 @@
     <!-- Lesson text (text lessons only) -->
     <section class="section" v-if="lesson.text">
       <h3>📄 课文</h3>
-      <pre class="lesson-text">{{ lesson.text }}</pre>
+      <pre class="lesson-text selectable-text" @mouseup="onTextSelect">{{ lesson.text }}</pre>
     </section>
 
     <!-- Translation (text lessons only) -->
@@ -109,9 +109,24 @@
         下一课 →
       </button>
     </div>
+
+    <!-- Personal vocab success toast -->
+    <div v-if="addSuccess" class="toast-success">
+      ✅ 已加入生词本：<strong>{{ addSuccessWord }}</strong>
+    </div>
   </div>
 
-  <div v-else-if="loading" class="loading">加载中...</div>
+  <!-- Loading state -->
+  <div v-if="loading && !lesson" class="loading">加载中...</div>
+
+  <!-- Word selection popup (always rendered) -->
+  <WordPopup
+    :selected-text="selectedText"
+    :popup-top="popupTop"
+    :popup-left="popupLeft"
+    @add="addToPersonalVocab"
+    @cancel="clearSelection"
+  />
 </template>
 
 <script setup>
@@ -124,8 +139,10 @@ import {
   getExercises,
   submitExercise,
   updateProgress,
+  addPersonalVocab,
 } from '../api/index.js'
 import AudioPlayer from '../components/AudioPlayer.vue'
+import WordPopup from '../components/WordPopup.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -138,6 +155,13 @@ const results = reactive({})
 const answered = reactive({})
 const inputAnswers = reactive({})
 const exerciseScores = reactive({})
+
+// Word selection state
+const selectedText = ref('')
+const popupTop = ref(0)
+const popupLeft = ref(0)
+const addSuccess = ref(false)
+const addSuccessWord = ref('')
 
 const isOdd = computed(() => lesson.value && lesson.value.lesson_number % 2 === 1)
 
@@ -199,6 +223,48 @@ onMounted(async () => {
   const id = route.params.id
   await loadLessonData(id)
 })
+
+// ── Word selection ──
+
+function onTextSelect() {
+  const sel = window.getSelection()
+  const text = sel?.toString().trim()
+  if (!text || text.length < 1 || text.length > 50) {
+    clearSelection()
+    return
+  }
+  selectedText.value = text
+  const range = sel.getRangeAt(0)
+  const rect = range.getBoundingClientRect()
+  popupTop.value = rect.bottom + window.scrollY + 8
+  popupLeft.value = rect.left + window.scrollX
+}
+
+function clearSelection() {
+  selectedText.value = ''
+  window.getSelection()?.removeAllRanges()
+}
+
+async function addToPersonalVocab(word) {
+  if (!lesson.value) return
+  try {
+    await addPersonalVocab({
+      lesson_id: lesson.value.id,
+      word: word,
+    })
+    addSuccessWord.value = word
+    addSuccess.value = true
+    setTimeout(() => { addSuccess.value = false }, 2000)
+  } catch (e) {
+    if (e.response?.status === 400) {
+      alert('该词已在生词本中')
+    } else {
+      alert('添加失败，请重试')
+    }
+    return
+  }
+  clearSelection()
+}
 
 function getOptionClass(exerciseId, option) {
   if (!answered[exerciseId]) return ''
@@ -491,5 +557,34 @@ async function submitAnswer(exercise, answer) {
   text-align: center;
   padding: 40px;
   color: #999;
+}
+
+.selectable-text {
+  user-select: text;
+  cursor: text;
+}
+
+.selectable-text::selection {
+  background: #bbdefb;
+}
+
+.toast-success {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #4caf50;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 400;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 </style>

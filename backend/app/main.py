@@ -10,7 +10,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import HealthResponse, settings
 from app.db.database import init_db
-from app.routers import lessons, vocabulary, grammar, progress, users
+from app.routers import lessons, vocabulary, grammar, progress, users, personal_vocab
 
 
 def create_app() -> FastAPI:
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
 
     # API routes
     app.include_router(users.router)
+    app.include_router(personal_vocab.router)
     app.include_router(lessons.router, prefix="/v1")
     app.include_router(vocabulary.router, prefix="/v1")
     app.include_router(grammar.router, prefix="/v1")
