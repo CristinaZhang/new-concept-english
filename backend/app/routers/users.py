@@ -5,10 +5,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.db.database import get_session
-from app.db.models import User
+from app.db.models import User, UserProgress
 
 router = APIRouter(prefix="/v1", tags=["users"])
 
@@ -54,3 +54,22 @@ def create_user(
     session.refresh(user)
 
     return UserResponse(user_id=user.user_id, name=user.name)
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Delete a user and all their progress."""
+    user = session.exec(select(User).where(User.user_id == user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+
+    # Delete user's progress first
+    session.exec(delete(UserProgress).where(UserProgress.user_id == user_id))
+    # Delete the user
+    session.delete(user)
+    session.commit()
+
+    return {"deleted": user_id}

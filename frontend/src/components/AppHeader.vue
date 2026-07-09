@@ -13,17 +13,26 @@
       <div class="modal">
         <h3>切换用户 / 新用户</h3>
         <div class="user-list" v-if="users.length > 0">
-          <button
+          <div
             v-for="u in users"
             :key="u.user_id"
-            class="user-option"
-            :class="{ active: u.user_id === currentUserId }"
-            @click="selectUser(u.user_id)"
+            class="user-option-row"
           >
-            <span class="user-option-icon">👤</span>
-            <span class="user-option-name">{{ u.name || u.user_id }}</span>
-            <span class="user-option-id">{{ u.user_id }}</span>
-          </button>
+            <button
+              class="user-option"
+              :class="{ active: u.user_id === currentUserId }"
+              @click="selectUser(u.user_id)"
+            >
+              <span class="user-option-icon">👤</span>
+              <span class="user-option-name">{{ u.name || u.user_id }}</span>
+              <span class="user-option-id">{{ u.user_id }}</span>
+            </button>
+            <button
+              class="delete-btn"
+              @click="deleteUser(u.user_id)"
+              title="删除此用户（含其进度）"
+            >🗑️</button>
+          </div>
         </div>
         <p v-else class="no-users">暂无已注册用户</p>
 
@@ -95,6 +104,22 @@ async function createUser() {
     newUserId.value = ''
   } catch (e) {
     createError.value = e.response?.data?.detail || '创建失败，请重试'
+  }
+}
+
+async function deleteUser(userId) {
+  if (!confirm(`确定删除用户 "${userId}"？该用户的学习进度也会被删除。`)) return
+  try {
+    const { default: axios } = await import('axios')
+    await axios.delete(`/v1/users/${userId}`)
+    users.value = users.value.filter(u => u.user_id !== userId)
+    // If the deleted user was the current one, switch to default
+    if (getUserId() === userId) {
+      setUserId('')
+      window.location.reload()
+    }
+  } catch (e) {
+    alert('删除失败')
   }
 }
 
@@ -235,6 +260,30 @@ onMounted(() => {
   font-size: 0.75rem;
   color: #999;
   font-family: monospace;
+}
+
+.user-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-option-row .user-option {
+  flex: 1;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.delete-btn:hover {
+  background: #ffebee;
 }
 
 .no-users {
