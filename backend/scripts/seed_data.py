@@ -405,47 +405,41 @@ def seed():
     db_url = settings.database_url
     if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:///:memory:"):
         db_path = db_url.replace("sqlite:///", "")
-        # Remove old DB to handle schema migration (no production data to preserve yet)
-        if os.path.exists(db_path):
-            print(f"🗑️  Removing old database for schema migration: {db_path}")
-            os.remove(db_path)
-        os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+        db_exists = os.path.exists(db_path)
+        if not db_exists:
+            os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 
-    init_db()
+    init_db()  # create tables (including new ones like PersonalVocabulary)
 
+    # Check if this is a fresh DB (no lessons yet)
     with Session(engine) as session:
-        # ── Seed default users ─────────────────────────────────
-        for uid, name in DEFAULT_USERS:
-            existing = session.exec(select(User).where(User.user_id == uid)).first()
-            if not existing:
-                user = User(user_id=uid, name=name, created_at=datetime.now())
-                session.add(user)
-        session.commit()
-        print(f"👥 Seeded {len(DEFAULT_USERS)} default users.")
+        has_lessons = len(session.exec(select(Lesson)).all()) > 0
 
-        # Remove all existing data for a clean re-seed
-        from sqlmodel import delete
-        session.exec(delete(Exercise))
-        session.exec(delete(GrammarPoint))
-        session.exec(delete(Vocabulary))
-        session.exec(delete(UserProgress))
-        session.exec(delete(Lesson))
-        session.commit()
-        print("🧹 Cleared existing data.")
+    if not has_lessons:
+        # Fresh DB — seed all lesson data
+        with Session(engine) as session:
+            # ── Seed default users ─────────────────────────────────
+            for uid, name in DEFAULT_USERS:
+                existing = session.exec(select(User).where(User.user_id == uid)).first()
+                if not existing:
+                    user = User(user_id=uid, name=name, created_at=datetime.now())
+                    session.add(user)
+            session.commit()
+            print(f"👥 Seeded {len(DEFAULT_USERS)} default users.")
 
-        # ── Lessons ──────────────────────────────────────────────
-        for num, title, text, translation in LESSONS:
-            lesson = Lesson(
-                lesson_number=num,
-                title=title,
-                level="第一册",
-                text=text,
-                translation=translation,
-                image_url=f"/resources/images/lesson_{num:03d}.svg",
-                audio_url=f"/resources/audio/{_audio_filename(num)}.mp3",
-            )
-            session.add(lesson)
-        session.commit()
+            # ── Lessons ──────────────────────────────────────────────
+            for num, title, text, translation in LESSONS:
+                lesson = Lesson(
+                    lesson_number=num,
+                    title=title,
+                    level="第一册",
+                    text=text,
+                    translation=translation,
+                    image_url=f"/resources/images/lesson_{num:03d}.svg",
+                    audio_url=f"/resources/audio/{_audio_filename(num)}.mp3",
+                )
+                session.add(lesson)
+            session.commit()
 
         # Build lesson_id map: lesson_number -> id
         all_lessons = session.exec(select(Lesson)).all()
