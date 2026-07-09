@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -12,7 +13,17 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db.database import engine, init_db
-from app.db.models import Lesson, Vocabulary, GrammarPoint, Exercise
+from app.db.models import Lesson, Vocabulary, GrammarPoint, Exercise, User, UserProgress
+
+
+# ── Default users (seeded automatically) ────────────────────────────
+DEFAULT_USERS = [
+    ("kid001", "小明"),
+    ("kid002", "小红"),
+    ("kid003", "小华"),
+    ("kid004", "小强"),
+    ("kid005", "小丽"),
+]
 
 
 # ── Audio file mapping (paired files from wychl/nce repo) ────────────
@@ -394,16 +405,30 @@ def seed():
     db_url = settings.database_url
     if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:///:memory:"):
         db_path = db_url.replace("sqlite:///", "")
+        # Remove old DB to handle schema migration (no production data to preserve yet)
+        if os.path.exists(db_path):
+            print(f"🗑️  Removing old database for schema migration: {db_path}")
+            os.remove(db_path)
         os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 
     init_db()
 
     with Session(engine) as session:
+        # ── Seed default users ─────────────────────────────────
+        for uid, name in DEFAULT_USERS:
+            existing = session.exec(select(User).where(User.user_id == uid)).first()
+            if not existing:
+                user = User(user_id=uid, name=name, created_at=datetime.now())
+                session.add(user)
+        session.commit()
+        print(f"👥 Seeded {len(DEFAULT_USERS)} default users.")
+
         # Remove all existing data for a clean re-seed
         from sqlmodel import delete
         session.exec(delete(Exercise))
         session.exec(delete(GrammarPoint))
         session.exec(delete(Vocabulary))
+        session.exec(delete(UserProgress))
         session.exec(delete(Lesson))
         session.commit()
         print("🧹 Cleared existing data.")

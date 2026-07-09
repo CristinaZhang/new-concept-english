@@ -6,10 +6,11 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import HealthResponse, settings
 from app.db.database import init_db
-from app.routers import lessons, vocabulary, grammar, progress
+from app.routers import lessons, vocabulary, grammar, progress, users
 
 
 def create_app() -> FastAPI:
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
         return HealthResponse(status="ok")
 
     # API routes
+    app.include_router(users.router)
     app.include_router(lessons.router, prefix="/v1")
     app.include_router(vocabulary.router, prefix="/v1")
     app.include_router(grammar.router, prefix="/v1")
@@ -48,6 +50,9 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+# Prometheus metrics — exposes /metrics endpoint
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 @app.on_event("startup")

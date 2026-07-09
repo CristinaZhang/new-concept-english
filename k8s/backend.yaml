@@ -13,9 +13,11 @@ spec:
       labels:
         app: nce-backend
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: backend
-        image: ghcr.io/cristinazhang/nce-backend:latest
+        image: __BACKEND_IMAGE__
         ports:
         - containerPort: 8000
         env:

@@ -1,0 +1,65 @@
+---
+name: 🐛 Bug 报告
+description: 报告一个功能缺陷或错误
+title: "[Bug] 简短描述"
+labels: ["bug"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量提供完整信息帮助复现问题。
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 严重度
+      options:
+        - 🔴 高 - 功能不可用
+        - 🟡 中 - 功能可用但有缺陷
+        - 🟢 低 - 体验问题，不影响使用
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 清晰简洁地描述问题
+      placeholder: "点击上一课按钮后，页面没有反应..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 如何重现这个问题
+      placeholder: |
+        1. 打开 http://47.96.135.190:32627/lessons
+        2. 点击 L3 课文
+        3. 点击"上一课"按钮
+        4. 观察...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+      placeholder: "应该跳转到 L2 页面，内容正确刷新"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      description: 浏览器/设备
+      placeholder: "iPhone Safari / Chrome on Mac"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志截图（可选）
+      description: 浏览器控制台日志或截图

@@ -12,7 +12,99 @@ env:
   K3S_USER: root
 
 jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Seed test data
+        run: |
+          cd backend
+          python scripts/seed_data.py
+
+      - name: Start backend
+        run: |
+          cd backend
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          # Wait for server to be ready
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/docs > /dev/null && break
+            sleep 1
+          done
+
+      - name: Run API tests
+        run: |
+          set -e
+          BASE="http://localhost:8000"
+
+          # TC-001: 课文列表
+          echo "TC-001 课文列表..."
+          COUNT=$(curl -s "$BASE/v1/lessons" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
+          [ "$COUNT" = "20" ] && echo "  ✅ PASS ($COUNT lessons)" || { echo "  ❌ FAIL (got $COUNT)"; exit 1; }
+
+          # TC-002: 单课详情
+          echo "TC-002 单课详情..."
+          TITLE=$(curl -s "$BASE/v1/lessons/1" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['title'])")
+          [ -n "$TITLE" ] && echo "  ✅ PASS ($TITLE)" || { echo "  ❌ FAIL"; exit 1; }
+
+          # TC-003: 词汇
+          echo "TC-003 词汇..."
+          VCOUNT=$(curl -s "$BASE/v1/lessons/1/vocabulary" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
+          [ "$VCOUNT" -gt 0 ] 2>/dev/null && echo "  ✅ PASS ($VCOUNT words)" || { echo "  ❌ FAIL"; exit 1; }
+
+          # TC-004: 语法
+          echo "TC-004 语法..."
+          GCOUNT=$(curl -s "$BASE/v1/lessons/1/grammar" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
+          [ "$GCOUNT" -gt 0 ] 2>/dev/null && echo "  ✅ PASS ($GCOUNT points)" || { echo "  ❌ FAIL"; exit 1; }
+
+          # TC-005: 练习提交
+          echo "TC-005 练习提交..."
+          curl -sf -X POST "$BASE/v1/exercises/1/submit" -H "Content-Type: application/json" -d '{"answer":"test"}' > /dev/null
+          echo "  ✅ PASS"
+
+          # TC-006: 进度
+          echo "TC-006 进度..."
+          curl -sf "$BASE/v1/progress/summary" > /dev/null
+          echo "  ✅ PASS"
+
+          echo ""
+          echo "🧪 6/6 API tests passed"
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm install
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Verify build output
+        run: |
+          ls -la frontend/dist/index.html
+          echo "✅ Frontend build successful"
+
   build-and-deploy:
+    needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -53,9 +145,14 @@ jobs:
           username: ${{ env.K3S_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # Prepare manifest files with actual image tags
+            BACKEND_IMG="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-backend:${{ github.sha }}"
+            FRONTEND_IMG="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-frontend:${{ github.sha }}"
+
+            # Apply namespace
             kubectl create namespace new-concept --dry-run=client -o yaml | kubectl apply -f -
 
-            # Create/update ImagePullSecret for GHCR
+            # Update ImagePullSecret for GHCR
             kubectl create secret docker-registry ghcr-secret \
               --docker-server=${{ env.REGISTRY }} \
               --docker-username=CristinaZhang \
@@ -63,101 +160,15 @@ jobs:
               -n new-concept \
               --dry-run=client -o yaml | kubectl apply -f -
 
-            # Backend deployment
-            kubectl apply -f - <<EOF
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: nce-backend
-              namespace: new-concept
-            spec:
-              replicas: 1
-              selector:
-                matchLabels:
-                  app: nce-backend
-              template:
-                metadata:
-                  labels:
-                    app: nce-backend
-                spec:
-                  imagePullSecrets:
-                  - name: ghcr-secret
-                  containers:
-                  - name: backend
-                    image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-backend:${{ github.sha }}
-                    ports:
-                    - containerPort: 8000
-                    env:
-                    - name: DATABASE_URL
-                      value: sqlite:///./data/nce.db
-                    - name: CORS_ORIGINS
-                      value: "http://${{ env.K3S_HOST }}"
-                    resources:
-                      requests:
-                        memory: "128Mi"
-                        cpu: "100m"
-                      limits:
-                        memory: "256Mi"
-                        cpu: "250m"
-                    volumeMounts:
-                    - name: data
-                      mountPath: /app/data
-                  volumes:
-                  - name: data
-                    persistentVolumeClaim:
-                      claimName: nce-backend-data
-            EOF
+            # Apply K8s manifests (replace image placeholders)
+            sed "s|__BACKEND_IMAGE__|$BACKEND_IMG|g; s|__FRONTEND_IMAGE__|$FRONTEND_IMG|g" k8s/backend.yaml | kubectl apply -f -
+            sed "s|__BACKEND_IMAGE__|$BACKEND_IMG|g; s|__FRONTEND_IMAGE__|$FRONTEND_IMG|g" k8s/frontend.yaml | kubectl apply -f -
 
-            # Frontend deployment
-            kubectl apply -f - <<EOF
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: nce-frontend
-              namespace: new-concept
-            spec:
-              replicas: 1
-              selector:
-                matchLabels:
-                  app: nce-frontend
-              template:
-                metadata:
-                  labels:
-                    app: nce-frontend
-                spec:
-                  imagePullSecrets:
-                  - name: ghcr-secret
-                  containers:
-                  - name: frontend
-                    image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/nce-frontend:${{ github.sha }}
-                    ports:
-                    - containerPort: 80
-                    resources:
-                      requests:
-                        memory: "64Mi"
-                        cpu: "50m"
-                      limits:
-                        memory: "128Mi"
-                        cpu: "100m"
-            EOF
-
-            # PVC
-            kubectl apply -f - <<EOF
-            apiVersion: v1
-            kind: PersistentVolumeClaim
-            metadata:
-              name: nce-backend-data
-              namespace: new-concept
-            spec:
-              accessModes: ["ReadWriteOnce"]
-              resources:
-                requests:
-                  storage: 1Gi
-              storageClassName: local-path
-            EOF
-
+            # Wait for rollout
             kubectl rollout status deployment/nce-backend -n new-concept --timeout=120s || echo "Rollout check failed"
             kubectl rollout status deployment/nce-frontend -n new-concept --timeout=120s || echo "Rollout check failed"
 
             echo "=== Deploy complete ==="
+            echo "Backend:  $BACKEND_IMG"
+            echo "Frontend: $FRONTEND_IMG"
             echo "Access at: http://${{ env.K3S_HOST }}"

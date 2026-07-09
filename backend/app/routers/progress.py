@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -19,13 +19,15 @@ class UpdateProgressRequest(BaseModel):
 
 @router.get("/progress")
 def get_all_progress(
+    user_id: str = Query(default="default"),
     session: Session = Depends(get_session),
 ) -> list[dict]:
-    stmt = select(UserProgress).order_by(UserProgress.completed_at.desc())
+    stmt = select(UserProgress).where(UserProgress.user_id == user_id).order_by(UserProgress.completed_at.desc())
     items = session.exec(stmt).all()
     return [
         {
             "id": p.id,
+            "user_id": p.user_id,
             "lesson_id": p.lesson_id,
             "vocabulary_score": p.vocabulary_score,
             "grammar_score": p.grammar_score,
@@ -40,6 +42,7 @@ def get_all_progress(
 def update_progress(
     lesson_id: int,
     req: UpdateProgressRequest,
+    user_id: str = Query(default="default"),
     session: Session = Depends(get_session),
 ) -> dict:
     # Verify lesson exists
@@ -47,8 +50,11 @@ def update_progress(
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
-    # Upsert progress
-    stmt = select(UserProgress).where(UserProgress.lesson_id == lesson_id)
+    # Upsert progress for this user + lesson
+    stmt = select(UserProgress).where(
+        UserProgress.user_id == user_id,
+        UserProgress.lesson_id == lesson_id,
+    )
     progress = session.exec(stmt).first()
 
     if progress:
@@ -57,6 +63,7 @@ def update_progress(
         progress.completed_at = datetime.now(timezone.utc)
     else:
         progress = UserProgress(
+            user_id=user_id,
             lesson_id=lesson_id,
             vocabulary_score=req.vocabulary_score,
             grammar_score=req.grammar_score,
@@ -69,6 +76,7 @@ def update_progress(
 
     return {
         "id": progress.id,
+        "user_id": progress.user_id,
         "lesson_id": progress.lesson_id,
         "vocabulary_score": progress.vocabulary_score,
         "grammar_score": progress.grammar_score,
@@ -79,22 +87,24 @@ def update_progress(
 
 @router.get("/progress/summary")
 def get_progress_summary(
+    user_id: str = Query(default="default"),
     session: Session = Depends(get_session),
 ) -> dict:
     # Total lessons
     total_lessons = len(session.exec(select(Lesson)).all())
-    # Completed lessons
-    completed = len(session.exec(select(UserProgress)).all())
-    # Average scores
-    all_progress = session.exec(select(UserProgress)).all()
-    if all_progress:
-        avg_vocab = round(sum(p.vocabulary_score for p in all_progress) / len(all_progress), 1)
-        avg_grammar = round(sum(p.grammar_score for p in all_progress) / len(all_progress), 1)
+    # Completed lessons for this user
+    user_progress = session.exec(select(UserProgress).where(UserProgress.user_id == user_id)).all()
+    completed = len(user_progress)
+    # Average scores for this user
+    if user_progress:
+        avg_vocab = round(sum(p.vocabulary_score for p in user_progress) / len(user_progress), 1)
+        avg_grammar = round(sum(p.grammar_score for p in user_progress) / len(user_progress), 1)
     else:
         avg_vocab = 0.0
         avg_grammar = 0.0
 
     return {
+        "user_id": user_id,
         "total_lessons": total_lessons,
         "completed_lessons": completed,
         "completion_rate": round(completed / total_lessons * 100, 1) if total_lessons else 0,

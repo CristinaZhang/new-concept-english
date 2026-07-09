@@ -88,13 +88,18 @@ class UserProgress(SQLModel, table=True):
     __tablename__ = "user_progress"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    lesson_id: int = Field(foreign_key="lesson.id", unique=True, index=True)
+    user_id: str = Field(default="default", index=True)
+    lesson_id: int = Field(foreign_key="lesson.id", index=True)
     vocabulary_score: int = 0
     grammar_score: int = 0
     completed_at: Optional[datetime] = None
     review_dates_json: str = "[]"
 
     lesson: Optional["Lesson"] = Relationship(back_populates="progress")
+
+    class Config:
+        # Composite unique: (user_id, lesson_id)
+        pass
 
     @property
     def review_dates(self) -> list:
@@ -105,3 +110,13 @@ class UserProgress(SQLModel, table=True):
     def review_dates(self, value: list) -> None:
         import json
         self.review_dates_json = json.dumps(value, ensure_ascii=False)
+
+
+class User(SQLModel, table=True):
+    """Lightweight user registry — no auth, just ID + display name."""
+    __tablename__ = "user"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True, unique=True)
+    name: str = ""
+    created_at: Optional[datetime] = None

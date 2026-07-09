@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getUserId } from '../utils/user.js'
 
 const api = axios.create({
   baseURL: '', // uses Vite dev proxy in dev, same-origin in prod
@@ -8,7 +9,7 @@ const api = axios.create({
 // ── Lessons ──────────────────────────────────────────────────────────
 
 export function getLessons(params = {}) {
-  return api.get('/v1/lessons', { params })
+  return api.get('/v1/lessons', { params: { user_id: getUserId(), ...params } })
 }
 
 export function getLesson(id) {
@@ -46,15 +47,21 @@ export function submitExercise(id, answer) {
 // ── Progress ─────────────────────────────────────────────────────────
 
 export function getProgress() {
-  return api.get('/v1/progress')
+  return api.get('/v1/progress', { params: { user_id: getUserId() } })
 }
 
 export function updateProgress(lessonId, data) {
-  return api.post(`/v1/progress/lessons/${lessonId}`, data)
+  return api.post(`/v1/progress/lessons/${lessonId}`, data, { params: { user_id: getUserId() } })
 }
 
 export function getProgressSummary() {
-  return api.get('/v1/progress/summary')
+  return api.get('/v1/progress/summary', { params: { user_id: getUserId() } })
+}
+
+// ── Users ────────────────────────────────────────────────────────────
+
+export function getUsers() {
+  return api.get('/v1/users')
 }
 
 export default api

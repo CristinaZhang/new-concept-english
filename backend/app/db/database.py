@@ -3,6 +3,8 @@ from __future__ import annotations
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import settings
+# Import models to register with metadata
+from app.db import models  # noqa: F401
 
 connect_args = {}
 if settings.database_url.startswith("sqlite"):
