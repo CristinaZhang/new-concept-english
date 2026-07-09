@@ -115,7 +115,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getLesson,
@@ -161,6 +161,45 @@ function goToLesson(num) {
   router.push(`/lessons/${num}`)
 }
 
+async function loadLessonData(id) {
+  loading.value = true
+  try {
+    const [lessonRes, vocabRes, grammarRes, exRes] = await Promise.all([
+      getLesson(id),
+      getLessonVocabulary(id),
+      getLessonGrammar(id),
+      getExercises(id),
+    ])
+    lesson.value = lessonRes.data
+    vocab.value = vocabRes.data
+    grammar.value = grammarRes.data
+    exercises.value = exRes.data
+  } catch (e) {
+    console.error('Failed to load lesson:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Watch for route param changes (prev/next lesson navigation)
+watch(() => route.params.id, async (newId) => {
+  if (newId) {
+    // Clear state
+    Object.keys(results).forEach(k => delete results[k])
+    Object.keys(answered).forEach(k => delete answered[k])
+    Object.keys(inputAnswers).forEach(k => delete inputAnswers[k])
+    Object.keys(exerciseScores).forEach(k => delete exerciseScores[k])
+    await loadLessonData(newId)
+    // Scroll to top
+    window.scrollTo(0, 0)
+  }
+})
+
+onMounted(async () => {
+  const id = route.params.id
+  await loadLessonData(id)
+})
+
 function getOptionClass(exerciseId, option) {
   if (!answered[exerciseId]) return ''
   const r = results[exerciseId]
@@ -195,26 +234,6 @@ async function submitAnswer(exercise, answer) {
     console.error('Failed to submit answer:', e)
   }
 }
-
-onMounted(async () => {
-  const id = route.params.id
-  try {
-    const [lessonRes, vocabRes, grammarRes, exRes] = await Promise.all([
-      getLesson(id),
-      getLessonVocabulary(id),
-      getLessonGrammar(id),
-      getExercises(id),
-    ])
-    lesson.value = lessonRes.data
-    vocab.value = vocabRes.data
-    grammar.value = grammarRes.data
-    exercises.value = exRes.data
-  } catch (e) {
-    console.error('Failed to load lesson:', e)
-  } finally {
-    loading.value = false
-  }
-})
 </script>
 
 <style scoped>
