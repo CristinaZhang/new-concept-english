@@ -245,14 +245,16 @@ function clearSelection() {
   window.getSelection()?.removeAllRanges()
 }
 
-async function addToPersonalVocab(word) {
+async function addToPersonalVocab(data) {
   if (!lesson.value) return
   try {
     await addPersonalVocab({
       lesson_id: lesson.value.id,
-      word: word,
+      word: data.word,
+      phonetic: data.phonetic,
+      meaning: data.meaning,
     })
-    addSuccessWord.value = word
+    addSuccessWord.value = data.word
     addSuccess.value = true
     setTimeout(() => { addSuccess.value = false }, 2000)
   } catch (e) {
