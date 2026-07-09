@@ -1,34 +1,58 @@
 /**
- * Free Dictionary API — fetches phonetic, definition, examples for an English word.
- * No API key needed.
- * https://dictionaryapi.dev/
+ * Free translation API for English → Chinese.
+ * No API key needed. Uses MyMemory Translation API.
+ * https://mymemory.translated.net/doc/spec.php
  */
 
-const DICT_API = 'https://api.dictionaryapi.dev/api/v2/entries/en'
+const TRANSLATE_API = 'https://api.mymemory.translated.net/get'
 
-export async function lookupWord(word) {
-  const res = await fetch(`${DICT_API}/${encodeURIComponent(word.toLowerCase())}`)
+export async function translateWord(word) {
+  const url = `${TRANSLATE_API}?q=${encodeURIComponent(word.toLowerCase())}&langpair=en|zh-CN`
+  const res = await fetch(url)
   if (!res.ok) return null
 
   const data = await res.json()
-  const entry = data[0]
-  if (!entry) return null
+  const translated = data.responseData?.translatedText
 
-  // Extract phonetic (first available)
-  const phonetic = entry.phonetic
-    || entry.phonetics?.find(p => p.text)?.text
-    || ''
-
-  // Extract first definition + example
-  const meaning = entry.meanings?.[0]
-  const definition = meaning?.definitions?.[0]?.definition || ''
-  const example = meaning?.definitions?.[0]?.example || ''
+  if (!translated || translated.toLowerCase() === word.toLowerCase()) return null
 
   return {
-    word: entry.word || word,
+    word: word,
+    meaning: translated,
+  }
+}
+
+/**
+ * Combined lookup: English dictionary for phonetic + translation for Chinese meaning.
+ */
+const DICT_API = 'https://api.dictionaryapi.dev/api/v2/entries/en'
+
+export async function lookupWord(word) {
+  // Parallel: fetch phonetic + Chinese translation
+  const [dictRes, transRes] = await Promise.all([
+    fetch(`${DICT_API}/${encodeURIComponent(word.toLowerCase())}`),
+    translateWord(word),
+  ])
+
+  const phonetic = dictRes.ok
+    ? await dictRes.json().then(d => {
+        const entry = d[0]
+        if (!entry) return ''
+        return entry.phonetic
+          || entry.phonetics?.find(p => p.text)?.text
+          || ''
+      }).catch(() => '')
+    : ''
+
+  const meaning = transRes?.meaning || ''
+
+  if (!meaning && !phonetic) return null
+
+  return {
+    word: word,
     phonetic: phonetic ? phonetic.replace(/^\s*\/|\/\s*$/g, '') : '',
-    meaning: definition,
-    partOfSpeech: meaning?.partOfSpeech || '',
-    example: example,
+    meaning: meaning,
+    partOfSpeech: '',
+    example: '',
   }
 }
